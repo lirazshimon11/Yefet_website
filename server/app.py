@@ -228,7 +228,7 @@ def leads():
             reply_to=OWNER_EMAIL
         )
 
-    # ----------- Customer confirmation (plain only) -----------
+    # ---------- Customer confirmation (plain only) ----------
     if payload.get("email"):
         user_plain = (
             f"שלום {payload['name']},\n\n"
