@@ -20,7 +20,8 @@ for k, v in (_env or {}).items():
 # -------------------------------------------------------------------
 
 app = Flask(__name__)
-CORS(app, origins=[os.getenv("FRONTEND_ORIGIN", "*")])
+origins = os.getenv("FRONTEND_ORIGIN", "*")
+CORS(app, origins=[o.strip() for o in origins.split(",")])
 
 # --- SQLite setup ---
 DB_PATH = os.getenv("DB_PATH", "./data/leads.db")
@@ -252,4 +253,6 @@ def leads():
 
 
 if __name__=="__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    port = int(os.getenv("PORT", "5000"))
+    app.run(host="0.0.0.0", port=port, debug=False)
+
