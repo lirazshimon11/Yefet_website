@@ -104,14 +104,14 @@ export default function Header() {
           onClick={() => setFontScale(s => s + 0.1)}
           className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow"
         >
-          הגדל טקסט
+          +
         </button>
         <button
           aria-label="הקטן טקסט"
           onClick={() => setFontScale(s => s - 0.1)}
           className="px-3 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-sm font-semibold shadow"
         >
-          הקטן טקסט
+          -
         </button>
       </div>
     </>
