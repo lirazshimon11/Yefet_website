@@ -1,8 +1,14 @@
-[build]
-  command = "npm run build"
-  publish = "dist"
+# netlify.toml
 
+# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Proxy API to Render
+[[redirects]]
+  from = "/api/*"
+  to   = "https://yafet-website.onrender.com/api/:splat"
+  status = 200
+  force = true
