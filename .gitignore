@@ -17,6 +17,7 @@ env/
 *.db
 *.sqlite3
 server/data/*.db
+server/data/*.sqlite*
 
 # Env files (Secrets)
 .env
