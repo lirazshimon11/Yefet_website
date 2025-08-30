@@ -1,0 +1,27 @@
+# Node / React
+node_modules/
+dist/
+.vite/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+
+# SQLite DB
+*.db
+*.sqlite3
+server/data/*.db
+
+# Env files (Secrets)
+.env
+server/.env
+
+# OS files
+.DS_Store
+Thumbs.db
