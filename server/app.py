@@ -37,6 +37,7 @@ print(f"[DB] Using path: {DB_PATH}")
 BACKUPS_DIR = (Path(DB_PATH).parent / "backups")
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 
+
 def get_conn():
     """
     Ensure folder exists and open a SQLite connection.
