@@ -2,24 +2,44 @@ name: Nightly Leads Backup
 
 on:
   schedule:
-    - cron: "0 1 * * *"
-  workflow_dispatch:
+    # 18:00 UTC ≈ 21:00 בקיץ (IDT)
+    - cron: "0 18 * * *"
+    # 19:00 UTC ≈ 21:00 בחורף (IST)
+    - cron: "0 19 * * *"
+  workflow_dispatch:  # הפעלה ידנית מה-UI
 
 permissions:
   contents: write
 
 env:
-  BASE_URL: ${{ secrets.RENDER_BASE_URL }}   # למשל: https://yafet-website.onrender.com
+  BASE_URL: ${{ secrets.RENDER_BASE_URL }}   # דוגמה: https://yefet-website.onrender.com
   KEY: ${{ secrets.EXPORT_KEY }}
 
 jobs:
   export:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # שער: מריץ את הגיבוי רק אם עכשיו 21:00 בישראל
+      - name: Gate – run only at 21:00 Asia/Jerusalem
+        id: gate
+        env:
+          TZ: Asia/Jerusalem
+        run: |
+          HOUR="$(date +'%H')"
+          if [ "$HOUR" = "21" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "Local time is 21:00 – proceed."
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Local time is $HOUR:00 – skip."
+          fi
+
       - name: Wake Render (health)
+        if: steps.gate.outputs.run == 'true'
         run: |
           set -euo pipefail
           for i in {1..6}; do
@@ -33,31 +53,34 @@ jobs:
           done
 
       - name: Trigger snapshot on Render (optional but recommended)
+        if: steps.gate.outputs.run == 'true'
         run: |
           set -euo pipefail
-          # משתמשים ב-GET + data-urlencode כדי לקודד את הפרמטרים כראוי
           curl -fsS --retry 5 --retry-connrefused --retry-delay 5 \
             --get "${BASE_URL%/}/api/backup/snapshot" \
             --data-urlencode "key=${KEY}" \
             -o /dev/null || true
 
       - name: Export CSV from Render
+        if: steps.gate.outputs.run == 'true'
         env:
           TZ: Asia/Jerusalem
         run: |
           set -euo pipefail
           mkdir -p backups
-          TS="$(date +'%d-%m-%Y--%H-%M-%S')"   # leads-31-08-2025--20-07-04.csv
+          TS="$(date +'%d-%m-%Y--%H-%M-%S')"   # leads-31-08-2025--21-00-00.csv
           curl -g -fsS --retry 5 --retry-connrefused --retry-delay 5 --max-time 180 \
             --get "${BASE_URL%/}/api/export/csv" \
             --data-urlencode "key=${KEY}" \
             -o "backups/leads-${TS}.csv"
 
       - name: Prune old backups (keep ~180 days)
+        if: steps.gate.outputs.run == 'true'
         run: |
           find backups -type f -name 'leads-*.csv' -mtime +180 -print -delete || true
 
       - name: Commit & push if changed
+        if: steps.gate.outputs.run == 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
