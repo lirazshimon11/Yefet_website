@@ -42,11 +42,15 @@ jobs:
             -o /dev/null || true
 
       - name: Export CSV from Render
+        env:
+          TZ: Asia/Jerusalem
         run: |
+          set -euo pipefail
           mkdir -p backups
-          TS="$(date +'%d-%m-%Y--%H-%M-%S')"   # חדש: תאריך ושעה לפי ישראל (שרת ה־runner לפי UTC אבל בלי Z)
-          curl -fsS --retry 5 --retry-connrefused --retry-delay 5 --max-time 180 \
-            "$BASE_URL/api/export/csv?key=$KEY" \
+          TS="$(date +'%d-%m-%Y--%H-%M-%S')"   # leads-31-08-2025--20-07-04.csv
+          curl -g -fsS --retry 5 --retry-connrefused --retry-delay 5 --max-time 180 \
+            --get "${BASE_URL%/}/api/export/csv" \
+            --data-urlencode "key=${KEY}" \
             -o "backups/leads-${TS}.csv"
 
       - name: Prune old backups (keep ~180 days)
