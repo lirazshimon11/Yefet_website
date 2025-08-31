@@ -2,49 +2,53 @@ name: Nightly Leads Backup
 
 on:
   schedule:
-    - cron: "0 1 * * *"   # כל יום ב-01:00 UTC
-  workflow_dispatch:       # גם הפעלה ידנית
+    - cron: "0 1 * * *"
+  workflow_dispatch:
 
 permissions:
-  contents: write          # נדרש לדחיפת הקבצים חזרה לריפו
+  contents: write
 
 env:
-  BASE_URL: ${{ secrets.RENDER_BASE_URL }}
+  BASE_URL: ${{ secrets.RENDER_BASE_URL }}   # למשל: https://yafet-website.onrender.com
   KEY: ${{ secrets.EXPORT_KEY }}
 
 jobs:
   export:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # מעיר את השירות ברנדר (cold start) לפני הייצוא
       - name: Wake Render (health)
         run: |
+          set -euo pipefail
           for i in {1..6}; do
-            echo "Ping $BASE_URL/api/health (try $i/6)..."
-            if curl -fsS --max-time 20 "$BASE_URL/api/health" -o /dev/null; then
+            echo "Ping ${BASE_URL%/}/api/health (try $i/6)…"
+            if curl -fsS --max-time 20 "${BASE_URL%/}/api/health" -o /dev/null; then
               echo "Service is up."
               break
             fi
-            echo "Still waking up... sleep 15s"
+            echo "Still waking up… sleep 15s"
             sleep 15
           done
 
       - name: Trigger snapshot on Render (optional but recommended)
         run: |
+          set -euo pipefail
+          # משתמשים ב-GET + data-urlencode כדי לקודד את הפרמטרים כראוי
           curl -fsS --retry 5 --retry-connrefused --retry-delay 5 \
-            "$BASE_URL/api/backup/snapshot?key=$KEY" \
+            --get "${BASE_URL%/}/api/backup/snapshot" \
+            --data-urlencode "key=${KEY}" \
             -o /dev/null || true
 
       - name: Export CSV from Render
         run: |
+          set -euo pipefail
           mkdir -p backups
           TS="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
           curl -fsS --retry 5 --retry-connrefused --retry-delay 5 --max-time 180 \
-            "$BASE_URL/api/export/csv?key=$KEY" \
+            --get "${BASE_URL%/}/api/export/csv" \
+            --data-urlencode "key=${KEY}" \
             -o "backups/leads-${TS}.csv"
 
       - name: Prune old backups (keep ~180 days)
