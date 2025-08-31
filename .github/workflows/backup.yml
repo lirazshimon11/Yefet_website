@@ -43,12 +43,10 @@ jobs:
 
       - name: Export CSV from Render
         run: |
-          set -euo pipefail
           mkdir -p backups
-          TS="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
+          TS="$(date +'%d-%m-%Y--%H-%M-%S')"   # חדש: תאריך ושעה לפי ישראל (שרת ה־runner לפי UTC אבל בלי Z)
           curl -fsS --retry 5 --retry-connrefused --retry-delay 5 --max-time 180 \
-            --get "${BASE_URL%/}/api/export/csv" \
-            --data-urlencode "key=${KEY}" \
+            "$BASE_URL/api/export/csv?key=$KEY" \
             -o "backups/leads-${TS}.csv"
 
       - name: Prune old backups (keep ~180 days)
