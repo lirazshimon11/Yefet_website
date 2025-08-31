@@ -12,36 +12,43 @@ export default function Contact(){
     const e = {}
     if (!form.name.trim()) e.name = 'נא למלא שם'
     if (!phoneIL.test(form.phone.trim())) e.phone = 'מספר טלפון ישראלי לא תקין'
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'אימייל לא תקין'
+    if (!form.email.trim()) {
+      e.email = 'נא למלא אימייל'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      e.email = 'אימייל לא תקין'
+    }
     if (!form.topic) e.topic = 'נא לבחור נושא'
+    if (!form.message.trim()) e.message = 'נא לכתוב הודעה'   // ← חזרנו לדרישה
     if (!agree) e.agree = 'יש לאשר את תנאי השימוש והצהרת האחריות'
     return e
   }
 
   const onSubmit = async (ev) => {
-    ev.preventDefault();
+    ev.preventDefault()
     const e = validate(); setErrors(e); if(Object.keys(e).length) return;
+
+    // שמירה מקומית (אופציונלית)
     try{
       const key='yefet_leads'; const prev=JSON.parse(localStorage.getItem(key)||'[]')
       prev.push({ ...form, ts:new Date().toISOString() }); localStorage.setItem(key, JSON.stringify(prev))
     }catch{}
+
+    // שליחה לשרת
     try {
       const res = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
-      });
-      const data = await res.json();
+      })
+      const data = await res.json()
       if (!res.ok || !data.ok) {
-        setErrors(data.errors || { server: 'שגיאה בשליחה, נסו שוב' });
-        return;
+        setErrors(data.errors || { server: 'שגיאה בשליחה, נסו שוב' })
+        return
       }
-      setSubmitted(true);
+      setSubmitted(true)   // מספיק פעם אחת כאן
     } catch (err) {
-      setErrors({ server: 'שגיאה ברשת, נסו שוב' });
+      setErrors({ server: 'שגיאה ברשת, נסו שוב' })
     }
-  
-    setSubmitted(true)
   }
 
   const waText = `שלום יפת, קוראים לי ${form.name}. נושא: ${form.topic||'-'}. טלפון: ${form.phone}. אימייל: ${form.email||'-'}. הודעה: ${form.message}`
@@ -53,24 +60,34 @@ export default function Contact(){
       <div className="max-w-6xl mx-auto px-4 sm:px-6 grid md:grid-cols-2 gap-8">
         <div className="rounded-2xl border border-slate-200 shadow-sm p-5 bg-white">
           {!submitted ? (
-            <form onSubmit={onSubmit} className="space-y-4">
-              <label className="block"><span className="block text-sm font-semibold mb-1">שם מלא *</span>
-                <input className="w-full rounded-xl border border-slate-300 px-4 py-2.5" value={form.name} onChange={e=>setForm({...form, name:e.target.value})}/>
+            <form onSubmit={onSubmit} className="space-y-4" noValidate>
+              <label className="block">
+                <span className="block text-sm font-semibold mb-1">שם מלא *</span>
+                <input required className="w-full rounded-xl border border-slate-300 px-4 py-2.5"
+                  value={form.name} onChange={e=>setForm({...form, name:e.target.value})}/>
               </label>
               {errors.name && <FieldError>{errors.name}</FieldError>}
 
-              <label className="block"><span className="block text-sm font-semibold mb-1">טלפון *</span>
-                <input inputMode="tel" placeholder="05x-xxxxxxx" className="w-full rounded-xl border border-slate-300 px-4 py-2.5" value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})}/>
+              <label className="block">
+                <span className="block text-sm font-semibold mb-1">טלפון *</span>
+                <input required inputMode="tel" placeholder="05x-xxxxxxx"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5"
+                  value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})}/>
               </label>
               {errors.phone && <FieldError>{errors.phone}</FieldError>}
 
-              <label className="block"><span className="block text-sm font-semibold mb-1">אימייל (לא חובה)</span>
-                <input type="email" className="w-full rounded-xl border border-slate-300 px-4 py-2.5" value={form.email} onChange={e=>setForm({...form, email:e.target.value})}/>
+              <label className="block">
+                <span className="block text-sm font-semibold mb-1">אימייל *</span>
+                <input required type="email"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5"
+                  value={form.email} onChange={e=>setForm({...form, email:e.target.value})}/>
               </label>
               {errors.email && <FieldError>{errors.email}</FieldError>}
 
-              <label className="block"><span className="block text-sm font-semibold mb-1">נושא הפנייה *</span>
-                <select className="w-full rounded-xl border border-slate-300 px-4 py-2.5 bg-white" value={form.topic} onChange={e=>setForm({...form, topic:e.target.value})}>
+              <label className="block">
+                <span className="block text-sm font-semibold mb-1">נושא הפנייה *</span>
+                <select required className="w-full rounded-xl border border-slate-300 px-4 py-2.5 bg-white"
+                  value={form.topic} onChange={e=>setForm({...form, topic:e.target.value})}>
                   <option value="">בחר/י נושא</option>
                   <option value="פצעי לחץ">פצעי לחץ</option>
                   <option value="לחץ דם">לחץ דם</option>
@@ -80,9 +97,13 @@ export default function Contact(){
               </label>
               {errors.topic && <FieldError>{errors.topic}</FieldError>}
 
-              <label className="block"><span className="block text-sm font-semibold mb-1">מה חשוב לך לספר? *</span>
-                <textarea rows="5" className="w-full rounded-xl border border-slate-300 px-4 py-2.5" value={form.message} onChange={e=>setForm({...form, message:e.target.value})}/>
+              <label className="block">
+                <span className="block text-sm font-semibold mb-1">מה חשוב לך לספר? *</span>
+                <textarea required rows="5"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5"
+                  value={form.message} onChange={e=>setForm({...form, message:e.target.value})}/>
               </label>
+              {errors.message && <FieldError>{errors.message}</FieldError>}
 
               <label className="flex items-start gap-2 text-sm">
                 <input type="checkbox" className="mt-1" checked={agree} onChange={e=>setAgree(e.target.checked)} />
@@ -105,6 +126,7 @@ export default function Contact(){
             </div>
           )}
         </div>
+
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 shadow-sm p-5 bg-white">
             <h3 className="text-lg font-bold">למה להשאיר פרטים?</h3>

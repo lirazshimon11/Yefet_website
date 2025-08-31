@@ -1,0 +1,44 @@
+name: Nightly Leads Backup
+
+on:
+  schedule:
+    - cron: "0 1 * * *"   # כל יום ב-01:00 UTC
+  workflow_dispatch:       # אפשר להריץ ידנית מה-UI
+
+permissions:
+  contents: write          # נדרש כדי לדחוף קבצים חזרה ל-repo
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Trigger snapshot on Render (optional but recommended)
+        run: |
+          curl -fsS "${{ secrets.RENDER_BASE_URL }}/api/backup/snapshot?key=${{ secrets.EXPORT_KEY }}" \
+            -o /dev/null || true
+
+      - name: Export CSV from Render
+        run: |
+          mkdir -p backups
+          TS="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
+          curl -fsS "${{ secrets.RENDER_BASE_URL }}/api/export/csv?key=${{ secrets.EXPORT_KEY }}" \
+            -o "backups/leads-${TS}.csv"
+
+      - name: Prune old backups (keep ~180 days)
+        run: |
+          find backups -type f -name 'leads-*.csv' -mtime +180 -print -delete || true
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backups/*.csv || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(backup): export leads CSV"
+            git push
+          fi
