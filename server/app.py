@@ -16,7 +16,7 @@ DATA_DIR   = BASE_DIR / "data"                        # .../server/data
 DEFAULT_DB = DATA_DIR / "leads.db"
 ENV_PATH   = BASE_DIR / ".env"
 
-print("ENV path:", ENV_PATH.resolve(), "| exists?", ENV_PATH.exists())
+print("[SERVER]: ENV path:", ENV_PATH.resolve(), "| exists?", ENV_PATH.exists())
 
 # Load env file (without overriding already-set env vars)
 _env = dotenv_values(str(ENV_PATH))
@@ -33,7 +33,6 @@ CORS(app, origins=[o.strip() for o in origins_cfg.split(",")])
 #   SQLite configuration
 # =========================
 DB_PATH = os.getenv("DB_PATH") or str(DEFAULT_DB)
-print(f"[DB] Using path: {DB_PATH}")
 BACKUPS_DIR = (Path(DB_PATH).parent / "backups")
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -80,12 +79,6 @@ SMTP_USER   = os.getenv("SMTP_USER")
 SMTP_PASS   = os.getenv("SMTP_PASS")
 OWNER_EMAIL = os.getenv("OWNER_EMAIL", SMTP_USER)
 
-print("SMTP_HOST:", SMTP_HOST)
-print("SMTP_PORT:", SMTP_PORT)
-print("SMTP_USER:", "SET" if SMTP_USER else "MISSING")
-print("SMTP_PASS:", "SET" if SMTP_PASS else "MISSING")
-print("OWNER_EMAIL:", OWNER_EMAIL or "MISSING")
-print("DB_PATH (resolved):", Path(DB_PATH).resolve())
 
 # =========================
 #   Validation & sanitization
@@ -163,20 +156,18 @@ def send_email(
             msg["Reply-To"] = reply_to
 
         if not all([SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS]):
-            print("[MAIL] Skipping send: SMTP not fully configured.")
+            print("[SERVER]: [send_email] Skipping send: SMTP not fully configured.❌")
             return False
 
-        print(f"[MAIL] connecting SMTP {SMTP_HOST}:{SMTP_PORT} as {SMTP_USER} → {to_addr}")
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
             server.set_debuglevel(1)  # log SMTP session to stdout
             server.starttls()
             server.login(SMTP_USER, SMTP_PASS)
             server.sendmail(SMTP_USER, [to_addr], msg.as_string())
 
-        print(f"[MAIL] sent OK → {to_addr} | subj={subject}")
         return True
     except Exception as e:
-        print("[MAIL] ERROR:", repr(e))
+        print(f"[SERVER]: [send_email] ERROR: {repr(e)} ❌")
         traceback.print_exc()
         return False
 
@@ -184,22 +175,26 @@ def send_email(
 #   Background mail worker
 # =========================
 def _send_emails_async(owner_args: dict, user_args: dict | None):
-    print("[BG] email worker started")
+    print("[SERVER]: [_send_emails_async] email worker started")
     try:
         ok1 = ok2 = None
         if owner_args and owner_args.get("to_addr"):
-            print("[BG] sending owner email…")
             ok1 = send_email(**owner_args)
-            print("[BG] owner email result:", ok1)
+            if ok1: 
+              print("[SERVER]: [_send_emails_async] owner --> owner : Sent Successfully!✅")
+            else:
+              print("[SERVER]: [_send_emails_async] owner --> owner : ERROR❌")
         if user_args and user_args.get("to_addr"):
-            print("[BG] sending user email…")
             ok2 = send_email(**user_args)
-            print("[BG] user email result:", ok2)
+            if ok2: 
+              print("[SERVER]: [_send_emails_async] owner --> user : Sent Successfully!✅")
+            else:
+              print("[SERVER]: [_send_emails_async] owner --> user : ERROR❌")
     except Exception as e:
-        print("[BG] Background email error:", repr(e))
+        print("[SERVER]: [_send_emails_async] Background email error:", repr(e))
         traceback.print_exc()
     finally:
-        print("[BG] email worker finished")
+        print("[SERVER]: [_send_emails_async] email worker finished✅")
 
 # =========================
 #   API: create lead
@@ -228,6 +223,7 @@ def leads():
     )
     conn.commit()
     conn.close()
+    print(f"[SERVER]: [leads] user: {payload["name"]} saved successfully in DB!✅")
 
     # Prepare email contents (do not depend on request after returning)
     owner_plain = (
@@ -393,7 +389,7 @@ def backup_snapshot():
         prune_old_backups(BACKUPS_DIR, days=30)
         return jsonify({"ok": True, "file": str(snap_file)})
     except Exception as e:
-        print("[SNAPSHOT] ERROR:", repr(e))
+        print("[SERVER]: [SNAPSHOT] ERROR:", repr(e))
         traceback.print_exc()
         return jsonify({"ok": False, "error": "snapshot_failed"}), 500
 
