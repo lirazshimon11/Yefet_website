@@ -11,3 +11,27 @@ html, body, #root {
   background: theme('colors.emerald.25'); 
 }
 * { scroll-behavior: smooth; }
+/* כפתורי +/- קטנים */
+.a11y-btn{
+  @apply rounded-full w-8 h-8 grid place-items-center bg-slate-100 hover:bg-slate-200 text-slate-900;
+}
+
+/* ניגודיות גבוהה */
+.a11y-hc {
+  --hc-bg:#000; --hc-fg:#fff; --hc-accent:#10b981;
+  background: var(--hc-bg) !important; color: var(--hc-fg) !important;
+}
+.a11y-hc *{ color: var(--hc-fg) !important; border-color:#888 !important; }
+.a11y-hc a{ color: var(--hc-accent) !important; text-decoration: underline; }
+
+/* פונט דיסלקסיה – אם תרצה, טען גופן חיצוני לפני (ראה הערה בהמשך) */
+.a11y-dys body, .a11y-dys :where(p,li,button,input,select,textarea,span){
+  font-family: "OpenDyslexic", "Rubik", "Arial", sans-serif !important;
+}
+
+/* בלי אנימציות/מעברים */
+.a11y-no-motion *{
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
