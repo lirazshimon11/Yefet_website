@@ -88,7 +88,7 @@ if not PG_URL:
 else:
     masked = PG_URL_RAW[:12] + "..."  # מסכה חלקית ללוג כדי לא לחשוף סיסמה
     print(f"[SERVER]: DATABASE_URL detected (masked): {masked}")
-    
+
 def pg_available() -> bool:
     return bool(PG_URL)
 
@@ -474,6 +474,31 @@ def health():
         info["pg_error"] = "DATABASE_URL missing"
     return jsonify(info)
 
+# =========================
+#   SQLite snapshot (backup API)
+# =========================
+def create_sqlite_snapshot(src_db: Path, dest_file: Path) -> None:
+    """
+    יוצר עותק תקין של מסד ה-SQLite גם כשהאפליקציה עובדת.
+    משתמש ב-Online Backup API כדי למנוע שחיתות קובץ.
+    """
+    src_db = Path(src_db)
+    dest_file = Path(dest_file)
+    dest_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # חיבור לקריאה-בלבד למקור
+    src = sqlite3.connect(str(src_db), uri=False)
+    try:
+        # חיבור לקובץ היעד (נוצר אוטומטית אם אינו קיים)
+        dst = sqlite3.connect(str(dest_file), uri=False)
+        try:
+            # העתקה אטומית של כל הדפים במסד
+            src.backup(dst)  # ← זה החלק החשוב
+            dst.commit()
+        finally:
+            dst.close()
+    finally:
+        src.close()
 
 def prune_old_backups(folder: Path, days: int = 30):
     cutoff = datetime.utcnow() - timedelta(days=days)
@@ -485,6 +510,7 @@ def prune_old_backups(folder: Path, days: int = 30):
                 p.unlink(missing_ok=True)
         except Exception:
             pass
+
 
 @app.get("/api/backup/snapshot")
 def backup_snapshot():
