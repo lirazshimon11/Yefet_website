@@ -426,6 +426,32 @@ def delete_review(rid: int):
         traceback.print_exc()
         return jsonify({"ok": False, "error": "db_error"}), 500
 
+
+# --- Admin reset for reviews (protected) ---
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+
+def _is_admin(req) -> bool:
+    key = req.headers.get("x-admin-key") or req.args.get("key")
+    return bool(ADMIN_API_KEY) and key == ADMIN_API_KEY
+
+@app.post("/api/admin/reviews/reset")
+def admin_reviews_reset():
+    if not pg_available():
+        return jsonify({"ok": False, "error": "no_postgres"}), 503
+    if not _is_admin(request):
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+    try:
+        with pg_connect() as conn, conn.cursor() as cur:
+            cur.execute("TRUNCATE TABLE reviews RESTART IDENTITY;")
+            conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        print("[ADMIN] reset reviews ERROR:", repr(e))
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": "db_error"}), 500
+
+
+
 # =========================
 #   API: export CSV (secured)
 # =========================
