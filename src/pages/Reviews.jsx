@@ -1,75 +1,84 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+const API_BASE = import.meta.env.VITE_API_BASE; // הגדר ב-Netlify
+
 const Card = ({ children }) => (
   <div className="rounded-2xl border border-slate-200 shadow-sm p-5 bg-white">{children}</div>
 );
 
-const LS_KEY = "site_reviews_v1";
-
 export default function Reviews() {
-  // --- state ---
-  const [reviews, setReviews] = useState([]); // {id, name, text, createdAt}
+  const [reviews, setReviews] = useState([]); // מהשרת: [{id, name, text, created_at}]
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // --- load from localStorage on mount ---
+  // --- טעינה מה-API ---
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setReviews(parsed);
+    (async () => {
+      if (!API_BASE) {
+        setError("VITE_API_BASE חסר בבנייה (Netlify).");
+        setLoading(false);
+        return;
       }
-    } catch {
-      /* ignore */
-    }
+      try {
+        setError("");
+        const r = await fetch(`${API_BASE}/api/reviews`, { credentials: "omit" });
+        if (!r.ok) throw new Error(`load failed: ${r.status}`);
+        const data = await r.json();
+        setReviews(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error(e);
+        setError("לא הצלחנו לטעון ביקורות מהשרת.");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
-  // --- persist on change ---
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(reviews));
-    } catch {
-      /* ignore */
-    }
+  // סדר כרונולוגי (חדשות למעלה)
+  const ordered = useMemo(() => {
+    return [...reviews].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }, [reviews]);
 
-  // newest first
-  const ordered = useMemo(
-    () => [...reviews].sort((a, b) => b.createdAt - a.createdAt),
-    [reviews]
-  );
-
-  // --- submit handler ---
+  // --- שליחה ל-API ---
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
 
     const n = name.trim();
     const t = text.trim();
-
     if (n.length < 2) return setError("שם חייב להיות באורך 2 תווים לפחות.");
     if (t.length < 8) return setError("ביקורת חייבת להיות באורך 8 תווים לפחות.");
 
+    if (!API_BASE) {
+      setError("VITE_API_BASE חסר בבנייה (Netlify).");
+      return;
+    }
+
     setSubmitting(true);
-
-    // כאן אפשר לחבר ל־API אמיתי; בינתיים נשמור ל-localStorage.
-    const newReview = {
-      id: crypto?.randomUUID?.() ?? String(Date.now()),
-      name: n,
-      text: t,
-      createdAt: Date.now(),
-    };
-
-    // “טעינה” קצרה כדי להראות פידבק
-    await new Promise((r) => setTimeout(r, 500));
-
-    setReviews((prev) => [newReview, ...prev]);
-    setName("");
-    setText("");
-    setSubmitting(false);
+    try {
+      const r = await fetch(`${API_BASE}/api/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ name: n, text: t }),
+      });
+      if (!r.ok) {
+        const maybeJson = await r.json().catch(() => ({}));
+        const msg = maybeJson?.errors?.name || maybeJson?.errors?.text || maybeJson?.error || `submit failed: ${r.status}`;
+        throw new Error(msg);
+      }
+      const created = await r.json();
+      setReviews((prev) => [created, ...prev]);
+      setName("");
+      setText("");
+    } catch (e) {
+      console.error(e);
+      setError(typeof e?.message === "string" ? e.message : "שגיאה בשליחת הביקורת.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -77,12 +86,16 @@ export default function Reviews() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-8">
         <header className="space-y-2">
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">ביקורות מהמבקרים</h1>
-          <p className="text-slate-600">
-            כאן אפשר להשאיר חוות דעת קצרה על החוויה שלכם. אחרי שליחה—הביקורת תופיע כאן מיד.
-          </p>
+          <p className="text-slate-600">השאירו חוות דעת קצרה—היא תופיע כאן לכולם.</p>
+
+          {!API_BASE && (
+            <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              ⚠️ חסר משתנה סביבה <b>VITE_API_BASE</b> בבניית הפרונט. הגדירו ב-Netlify והפעילו Clear cache & deploy.
+            </div>
+          )}
         </header>
 
-        {/* טופס הוספת ביקורת */}
+        {/* טופס */}
         <Card>
           <form onSubmit={handleSubmit} className="grid sm:grid-cols-3 gap-3 items-start">
             <div className="sm:col-span-1">
@@ -118,7 +131,7 @@ export default function Reviews() {
               </div>
             )}
 
-            <div className="sm:col-span-3 flex items-center gap-2">
+            <div className="sm:col-span-3">
               <button
                 type="submit"
                 disabled={submitting}
@@ -126,16 +139,18 @@ export default function Reviews() {
               >
                 {submitting ? "שולח…" : "הוספת ביקורת"}
               </button>
-              <span className="text-xs text-slate-500">שמות ותוכן נשמרים בדפדפן שלך (localStorage).</span>
+              <span className="ml-3 text-xs text-slate-500">
+                הביקורות נשמרות בשרת (Postgres) ונראות לכל המבקרים.
+              </span>
             </div>
           </form>
         </Card>
 
-        {/* רשימת ביקורות */}
-        {ordered.length === 0 ? (
-          <div className="text-center text-slate-600 py-10">
-            עדיין אין ביקורות. היו הראשונים לשתף 😊
-          </div>
+        {/* רשימה */}
+        {loading ? (
+          <div className="text-center text-slate-500 py-10">טוען…</div>
+        ) : ordered.length === 0 ? (
+          <div className="text-center text-slate-600 py-10">עדיין אין ביקורות.</div>
         ) : (
           <div className="grid md:grid-cols-2 gap-6">
             {ordered.map((r) => (
@@ -144,7 +159,7 @@ export default function Reviews() {
                 <div className="mt-3 text-sm text-slate-600 flex items-center justify-between">
                   <span className="font-semibold">— {r.name || "אנונימי/ת"}</span>
                   <time className="text-slate-400">
-                    {new Date(r.createdAt).toLocaleDateString("he-IL", {
+                    {new Date(r.created_at ?? r.createdAt).toLocaleDateString("he-IL", {
                       year: "numeric",
                       month: "2-digit",
                       day: "2-digit",
@@ -155,6 +170,9 @@ export default function Reviews() {
             ))}
           </div>
         )}
+
+        {/* קו דיבוג אופציונלי — מחק אחרי שאימות עובד */}
+        <p className="text-[11px] text-slate-400">API: {API_BASE || "MISSING"}</p>
       </div>
     </section>
   );
