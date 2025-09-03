@@ -42,7 +42,7 @@ export default function Home() {
         {/* עמודה ימנית – כרטיס פצעי לחץ + תמונה */}
         <div className="space-y-6">
           {/* הכרטיס הקומפקטי */}
-          <Teaser variant="card" />
+          <Teaser name="פצעי לחץ" variant="card" />
 
           {/* כרטיס תמונה */}
           <div className="rounded-2xl border border-slate-200 shadow-sm p-5 bg-white">
