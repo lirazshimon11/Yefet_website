@@ -1,5 +1,5 @@
 import React from "react";
-import DiabetesTeaser from "../components/PressureSoresTeaser"; // אם אין—החלף ל-PressureSoresTeaser זמנית
+import DiabetesTeaser from "../components/Teaser"; // אם אין—החלף ל-Teaser זמנית
 
 export default function Diabetes() {
   return (
@@ -107,7 +107,7 @@ export default function Diabetes() {
         </div>
 
         {/* חלונית יפת/תקשורת עם סבא (כמו בעמוד פצעי הלחץ) */}
-        <DiabetesTeaser variant="section" showAudience={false} />
+        <DiabetesTeaser name="סוכרת" variant="section" showAudience={false} />
 
         {/* דיסקליימר */}
         <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">

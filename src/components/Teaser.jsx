@@ -1,7 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
-export default function PressureSoresTeaser({
+export default function Teaser({
+  name = "",
   variant = "section",
   showAudience = true,   // ברירת מחדל: להציג את "למי זה מתאים"
 }) {
@@ -42,10 +43,10 @@ export default function PressureSoresTeaser({
 
   return (
     <Wrapper>
-      <Title>פתרון מעשי לפצעי לחץ - חדש וייחודי</Title>
+      <Title>פתרון מעשי ל{name} - חדש וייחודי</Title>
 
       <p className="text-slate-800 leading-relaxed">
-        בעזרת השם, יש לנו תהליך טיפול מובנה לפצעי לחץ, כולל ביקור שבועי וזמן החלמה
+        בעזרת השם, יש לנו תהליך טיפול מובנה ל{name}, כולל ביקור שבועי וזמן החלמה
         ממוצע של כ־5 שבועות (משתנה בין אדם לאדם).
       </p>
 

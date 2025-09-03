@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import PressureSoresTeaser from "../components/PressureSoresTeaser";
+import Teaser from "../components/Teaser";
 
 export default function Home() {
   return (
@@ -42,7 +42,7 @@ export default function Home() {
         {/* עמודה ימנית – כרטיס פצעי לחץ + תמונה */}
         <div className="space-y-6">
           {/* הכרטיס הקומפקטי */}
-          <PressureSoresTeaser variant="card" />
+          <Teaser variant="card" />
 
           {/* כרטיס תמונה */}
           <div className="rounded-2xl border border-slate-200 shadow-sm p-5 bg-white">

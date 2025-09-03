@@ -17,9 +17,6 @@ export default function AccessibilityPanel() {
   const [dyslexic, setDyslexic] = useState(
     () => localStorage.getItem("a11y_dyslexic") === "1"
   );
-  const [reducedMotion, setReducedMotion] = useState(
-    () => localStorage.getItem("a11y_reducedMotion") === "1"
-  );
 
   // ref עוטף גם את הכפתור וגם את התיבה כדי שלחיצות בפנים לא ייסגרו
   const wrapRef = useRef(null);
@@ -43,12 +40,6 @@ export default function AccessibilityPanel() {
     root.classList.toggle("a11y-dys", !!dyslexic);
     localStorage.setItem("a11y_dyslexic", dyslexic ? "1" : "0");
   }, [dyslexic]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("a11y-no-motion", !!reducedMotion);
-    localStorage.setItem("a11y_reducedMotion", reducedMotion ? "1" : "0");
-  }, [reducedMotion]);
 
   // סגירה בלחיצה בחוץ וב-ESC (נרשם רק כשהפאנל פתוח)
   useEffect(() => {
@@ -154,16 +145,6 @@ export default function AccessibilityPanel() {
               onChange={(e) => setDyslexic(e.target.checked)}
             />
             פונט ידידותי לדיסלקסיה
-          </label>
-
-          {/* צמצום אנימציות */}
-          <label className="flex items-center gap-2 text-sm py-1">
-            <input
-              type="checkbox"
-              checked={reducedMotion}
-              onChange={(e) => setReducedMotion(e.target.checked)}
-            />
-            צמצום אנימציות
           </label>
 
           <button

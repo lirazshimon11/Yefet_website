@@ -56,7 +56,7 @@ export default function Contact(){
   const mailBody = `שם: ${form.name}%0D%0Aטלפון: ${form.phone}%0D%0Aאימייל: ${form.email}%0D%0אנושא: ${form.topic}%0D%0הודעה:%0D%0A${encodeURIComponent(form.message)}`
 
   return (
-    <section className="py-14 sm:py-20">
+    <section className="py-14 sm:py-20 bg-gradient-to-b from-white to-emerald-50/30">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 grid md:grid-cols-2 gap-8">
         <div className="rounded-2xl border border-slate-200 shadow-sm p-5 bg-white">
           {!submitted ? (

@@ -8,6 +8,9 @@ from pathlib import Path
 from dotenv import dotenv_values
 from datetime import datetime, timedelta
 
+# NEW: postgres
+import psycopg
+
 # =========================
 #   Paths & .env loading
 # =========================
@@ -30,12 +33,11 @@ origins_cfg = os.getenv("FRONTEND_ORIGIN", "*")
 CORS(app, origins=[o.strip() for o in origins_cfg.split(",")])
 
 # =========================
-#   SQLite configuration
+#   SQLite configuration (Leads)
 # =========================
 DB_PATH = os.getenv("DB_PATH") or str(DEFAULT_DB)
 BACKUPS_DIR = (Path(DB_PATH).parent / "backups")
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def get_conn():
     """
@@ -44,7 +46,7 @@ def get_conn():
     as long as the directory exists.
     """
     db_file = Path(DB_PATH)
-    db_file.parent.mkdir(parents=True, exist_ok=True)  # create .../server/data if needed
+    db_file.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_file))
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
@@ -71,6 +73,48 @@ def init_db():
 init_db()
 
 # =========================
+#   PostgreSQL configuration (Reviews)
+# =========================
+PG_URL_RAW = os.getenv("DATABASE_URL", "").strip()
+PG_URL = PG_URL_RAW
+if PG_URL and "sslmode=" not in PG_URL:
+    # Render בד"כ דורש SSL; נוסיף אם חסר
+    PG_URL += ("&" if "?" in PG_URL else "?") + "sslmode=require"
+
+def pg_available() -> bool:
+    return bool(PG_URL)
+
+def pg_connect():
+    """
+    מחזיר חיבור psycopg חדש. נוח ופשוט לשירות קטן.
+    """
+    if not pg_available():
+        raise RuntimeError("DATABASE_URL is not set")
+    return psycopg.connect(PG_URL)
+
+def init_pg():
+    if not pg_available():
+        print("[SERVER]: PostgreSQL not configured (DATABASE_URL missing) — /api/reviews will be disabled.")
+        return
+    try:
+        with pg_connect() as conn, conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS reviews (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            conn.commit()
+        print("[SERVER]: PostgreSQL 'reviews' table is ready ✅")
+    except Exception as e:
+        print("[SERVER]: init_pg ERROR:", repr(e))
+        traceback.print_exc()
+
+init_pg()
+
+# =========================
 #   SMTP configuration
 # =========================
 SMTP_HOST   = os.getenv("SMTP_HOST")
@@ -78,7 +122,6 @@ SMTP_PORT   = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER   = os.getenv("SMTP_USER")
 SMTP_PASS   = os.getenv("SMTP_PASS")
 OWNER_EMAIL = os.getenv("OWNER_EMAIL", SMTP_USER)
-
 
 # =========================
 #   Validation & sanitization
@@ -130,7 +173,7 @@ def validate(data):
     return errs
 
 # =========================
-#   Mail helpers
+#   Mail helpers (unchanged)
 # =========================
 def send_email(
     to_addr: str,
@@ -197,7 +240,7 @@ def _send_emails_async(owner_args: dict, user_args: dict | None):
         print("[SERVER]: [_send_emails_async] email worker finished✅")
 
 # =========================
-#   API: create lead
+#   API: create lead (SQLite) — UNCHANGED
 # =========================
 @app.post("/api/leads")
 def leads():
@@ -223,9 +266,9 @@ def leads():
     )
     conn.commit()
     conn.close()
-    print(f"[SERVER]: [leads] user: {payload["name"]} saved successfully in DB!✅")
+    print(f"[SERVER]: [leads] user: {payload['name']} saved successfully in DB!✅")
 
-    # Prepare email contents (do not depend on request after returning)
+    # Prepare email contents...
     owner_plain = (
         f"New lead from {payload['name']}\n"
         f"Phone: {payload['phone']}\n"
@@ -300,15 +343,74 @@ def leads():
         "reply_to": OWNER_EMAIL,
     }
 
-    # Send emails in background (non-blocking)
     threading.Thread(
         target=_send_emails_async,
         args=(owner_args, user_args),
         daemon=True
     ).start()
 
-    # 201 = Created
     return jsonify({"ok": True}), 201
+
+# =========================
+#   API: Reviews (PostgreSQL)
+# =========================
+
+def _clean_review_payload(d: dict) -> tuple[str, str, dict | None]:
+    """
+    מחזיר (name, text, error_dict_or_None)
+    """
+    name = (d.get("name") or "").strip()
+    text = (d.get("text") or "").strip()
+    if len(name) < 2 or len(name) > 64:
+        return "", "", {"name": "שם חייב להיות בין 2 ל-64 תווים"}
+    if len(text) < 8 or len(text) > 600:
+        return "", "", {"text": "ביקורת חייבת להיות בין 8 ל-600 תווים"}
+    return name, text, None
+
+@app.get("/api/reviews")
+def list_reviews():
+    if not pg_available():
+        return jsonify([])  # אם אין קונפיג, נחזיר ריק (לא מפיל את השרת)
+    try:
+        with pg_connect() as conn, conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+            cur.execute(
+                "SELECT id, name, text, created_at FROM reviews ORDER BY created_at DESC LIMIT 200"
+            )
+            rows = cur.fetchall()
+            # המרה ל־ISO 8601 בטוח
+            for r in rows:
+                if isinstance(r["created_at"], datetime):
+                    r["created_at"] = r["created_at"].isoformat()
+            return jsonify(rows)
+    except Exception as e:
+        print("[SERVER]: /api/reviews ERROR:", repr(e))
+        traceback.print_exc()
+        return jsonify([]), 500
+
+@app.post("/api/reviews")
+def create_review():
+    if not pg_available():
+        return jsonify({"error": "reviews_not_configured"}), 503
+
+    payload = request.get_json(force=True) or {}
+    name, text, err = _clean_review_payload(payload)
+    if err:
+        return jsonify({"ok": False, "errors": err}), 400
+
+    try:
+        with pg_connect() as conn, conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+            cur.execute(
+                "INSERT INTO reviews (name, text) VALUES (%s, %s) RETURNING id, name, text, created_at;",
+                (name, text),
+            )
+            row = cur.fetchone()
+            if isinstance(row["created_at"], datetime):
+                row["created_at"] = row["created_at"].isoformat()
+            return jsonify(row), 201
+    except Exception as e:
+        print("[SERVER]: /api/reviews POST ERROR:", repr(e))
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": "db_error"}), 500
 
 # =========================
 #   API: export CSV (secured)
@@ -375,7 +477,6 @@ def prune_old_backups(folder: Path, days: int = 30):
 
 @app.get("/api/backup/snapshot")
 def backup_snapshot():
-    # same key as CSV export
     key = request.args.get("key", "")
     secret = os.getenv("EXPORT_KEY", "")
     if not secret or key != secret:

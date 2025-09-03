@@ -12,7 +12,7 @@ export default function FAQ(){
     {q:'איך יוצרים קשר?', a:'בעמוד יצירת קשר ניתן להשאיר פרטים או לפנות בוואטסאפ/אימייל.'}
   ]
   return (
-    <section className="py-14 sm:py-20">
+    <section className="py-14 sm:py-20 bg-gradient-to-b from-white to-emerald-50/30">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-4">
         <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">שאלות נפוצות</h2>
         {qas.map((x,i)=>(<Q key={i} {...x} />))}

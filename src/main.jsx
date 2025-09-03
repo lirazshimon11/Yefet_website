@@ -10,7 +10,6 @@ import Blood_pressure from './pages/לחץ-דם.jsx'
 import Nausea from './pages/בחילות.jsx'
 import High_cholesterol from './pages/כולסטרול-גבוה.jsx'
 import Migraine from './pages/מיגרנה.jsx'
-
 import Reviews from './pages/Reviews.jsx'
 import FAQ from './pages/FAQ.jsx'
 import Contact from './pages/Contact.jsx'

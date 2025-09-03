@@ -40,7 +40,7 @@ export default function Header() {
       : tabBase;
 
   return (
-    <header dir="rtl" className="sticky top-0 z-40 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+    <header dir="rtl" className="sticky top-0 z-40 bg-white border-b border-slate-200">
       {/* שורה עליונה: Grid ליישור מושלם */}
       <div className="border-b border-slate-200"> 
         

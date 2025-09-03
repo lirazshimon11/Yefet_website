@@ -1,5 +1,5 @@
 import React from "react";
-import BloodPressureTeaser from "../components/PressureSoresTeaser"; // אם אין—החלף זמנית ל-PressureSoresTeaser
+import BloodPressureTeaser from "../components/Teaser"; // אם אין—החלף זמנית ל-Teaser
 
 export default function BloodPressure() {
   return (
@@ -89,7 +89,7 @@ export default function BloodPressure() {
         </div>
 
         {/* חלונית תקשורת/תיאום (כמו בעמודים האחרים) */}
-        <BloodPressureTeaser variant="section" showAudience={false} />
+        <BloodPressureTeaser name="לחץ דם" variant="section" showAudience={false} />
 
         {/* דיסקליימר */}
         <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">

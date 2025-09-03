@@ -1,5 +1,5 @@
 import React from "react";
-import PressureSoresTeaser from "../components/PressureSoresTeaser";
+import PressureSoresTeaser from "../components/Teaser";
 
 export default function Pressure_ulcers() {
   return (
@@ -105,7 +105,7 @@ export default function Pressure_ulcers() {
         </div>
 
         {/* פתרון יפת */}
-        <PressureSoresTeaser variant="section" showAudience={false} />
+        <PressureSoresTeaser name="פצעי לחץ" variant="section" showAudience={false} />
 
         {/* דיסקליימר */}
         <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">

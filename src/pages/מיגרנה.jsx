@@ -1,5 +1,5 @@
 import React from "react";
-import MigraineTeaser from "../components/PressureSoresTeaser"; // אם אין—החלף זמנית ל-PressureSoresTeaser/DiabetesTeaser וכד׳
+import MigraineTeaser from "../components/Teaser"; // אם אין—החלף זמנית ל-Teaser
 
 export default function Migraine() {
   return (
@@ -87,7 +87,7 @@ export default function Migraine() {
         </div>
 
         {/* חלונית תקשורת/תיאום */}
-        <MigraineTeaser variant="section" showAudience={false} />
+        <MigraineTeaser name="מיגרנה" variant="section" showAudience={false} />
 
         {/* דיסקליימר */}
         <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">

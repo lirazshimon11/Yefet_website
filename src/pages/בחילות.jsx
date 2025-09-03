@@ -1,5 +1,5 @@
 import React from "react";
-import NauseaTeaser from "../components/PressureSoresTeaser"; // אם אין—החלף זמנית ל-PressureSoresTeaser
+import NauseaTeaser from "../components/Teaser"; // אם אין—החלף זמנית ל-Teaser
 
 export default function Nausea() {
   return (
@@ -89,7 +89,7 @@ export default function Nausea() {
         </div>
 
         {/* חלונית תקשורת/תיאום (כמו בעמודים האחרים) */}
-        <NauseaTeaser variant="section" showAudience={false} />
+        <NauseaTeaser name="בחילות" variant="section" showAudience={false} />
 
         {/* דיסקליימר */}
         <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-4">
