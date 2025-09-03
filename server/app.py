@@ -1,4 +1,5 @@
-import os, sqlite3, smtplib, re, threading, traceback, csv, io
+# app.py
+import os, sqlite3, smtplib, re, threading, traceback, csv, io, secrets, hashlib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
@@ -8,7 +9,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 from datetime import datetime, timedelta
 
-# NEW: postgres
+# Postgres
 import psycopg
 from psycopg import rows
 
@@ -43,8 +44,6 @@ BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 def get_conn():
     """
     Ensure folder exists and open a SQLite connection.
-    SQLite itself creates the .db file if it doesn't exist,
-    as long as the directory exists.
     """
     db_file = Path(DB_PATH)
     db_file.parent.mkdir(parents=True, exist_ok=True)
@@ -79,30 +78,26 @@ init_db()
 PG_URL_RAW = os.getenv("DATABASE_URL", "").strip()
 PG_URL = PG_URL_RAW
 if PG_URL and "sslmode=" not in PG_URL:
-    # Render בד"כ דורש SSL; נוסיף אם חסר
+    # Render בד״כ דורש SSL; נוסיף אם חסר
     PG_URL += ("&" if "?" in PG_URL else "?") + "sslmode=require"
 
-# === הוספת לוג כאן ===
 if not PG_URL:
     print("[SERVER]: WARNING – DATABASE_URL is missing. /api/reviews will return [].")
 else:
-    masked = PG_URL_RAW[:12] + "..."  # מסכה חלקית ללוג כדי לא לחשוף סיסמה
+    masked = PG_URL_RAW[:12] + "..."
     print(f"[SERVER]: DATABASE_URL detected (masked): {masked}")
 
 def pg_available() -> bool:
     return bool(PG_URL)
 
 def pg_connect():
-    """
-    מחזיר חיבור psycopg חדש. נוח ופשוט לשירות קטן.
-    """
     if not pg_available():
         raise RuntimeError("DATABASE_URL is not set")
     return psycopg.connect(PG_URL)
 
 def init_pg():
     if not pg_available():
-        print("[SERVER]: PostgreSQL not configured (DATABASE_URL missing) — /api/reviews will be disabled.")
+        print("[SERVER]: PostgreSQL not configured — /api/reviews disabled.")
         return
     try:
         with pg_connect() as conn, conn.cursor() as cur:
@@ -111,9 +106,12 @@ def init_pg():
                     id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
                     text TEXT NOT NULL,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    token_hash TEXT
                 );
             """)
+            # אם הטבלה ותיקה בלי העמודה:
+            cur.execute("ALTER TABLE reviews ADD COLUMN IF NOT EXISTS token_hash TEXT;")
             conn.commit()
         print("[SERVER]: PostgreSQL 'reviews' table is ready ✅")
     except Exception as e:
@@ -137,7 +135,7 @@ OWNER_EMAIL = os.getenv("OWNER_EMAIL", SMTP_USER)
 PHONE_IL = re.compile(r'^(?:\+?972|0)(?:[23489]|5\d)\d{7}$')
 EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
 
-# Hard limits (defense-in-depth)
+# Hard limits
 MAX_NAME    = 200
 MAX_PHONE   = 30
 MAX_EMAIL   = 320
@@ -149,7 +147,6 @@ def _trim(s: str | None, limit: int) -> str:
     return (s or "").strip()[:limit]
 
 def sanitize_payload(data: dict) -> dict:
-    """Trim + cap lengths; return a cleaned copy."""
     return {
         "name":    _trim(data.get("name"),    MAX_NAME),
         "phone":   _trim(data.get("phone"),   MAX_PHONE),
@@ -160,28 +157,23 @@ def sanitize_payload(data: dict) -> dict:
 
 def validate(data):
     errs = {}
-    # name
     if not data.get("name", "").strip():
         errs["name"] = "Name required"
-    # phone
     if not PHONE_IL.match(data.get("phone", "").strip()):
         errs["phone"] = "Invalid phone"
-    # email (REQUIRED now)
     email_val = data.get("email", "").strip()
     if not email_val:
         errs["email"] = "Email required"
     elif not EMAIL_RE.match(email_val):
         errs["email"] = "Invalid email"
-    # topic
     if not data.get("topic"):
         errs["topic"] = "Topic required"
-    # message
     if not data.get("message", "").strip():
         errs["message"] = "Message required"
     return errs
 
 # =========================
-#   Mail helpers (unchanged)
+#   Mail helpers
 # =========================
 def send_email(
     to_addr: str,
@@ -211,7 +203,7 @@ def send_email(
             return False
 
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
-            server.set_debuglevel(1)  # log SMTP session to stdout
+            server.set_debuglevel(1)
             server.starttls()
             server.login(SMTP_USER, SMTP_PASS)
             server.sendmail(SMTP_USER, [to_addr], msg.as_string())
@@ -231,16 +223,10 @@ def _send_emails_async(owner_args: dict, user_args: dict | None):
         ok1 = ok2 = None
         if owner_args and owner_args.get("to_addr"):
             ok1 = send_email(**owner_args)
-            if ok1: 
-              print("[SERVER]: [_send_emails_async] owner --> owner : Sent Successfully!✅")
-            else:
-              print("[SERVER]: [_send_emails_async] owner --> owner : ERROR❌")
+            print("[SERVER]: owner mail:", "OK✅" if ok1 else "ERR❌")
         if user_args and user_args.get("to_addr"):
             ok2 = send_email(**user_args)
-            if ok2: 
-              print("[SERVER]: [_send_emails_async] owner --> user : Sent Successfully!✅")
-            else:
-              print("[SERVER]: [_send_emails_async] owner --> user : ERROR❌")
+            print("[SERVER]: user mail:", "OK✅" if ok2 else "ERR❌")
     except Exception as e:
         print("[SERVER]: [_send_emails_async] Background email error:", repr(e))
         traceback.print_exc()
@@ -248,7 +234,7 @@ def _send_emails_async(owner_args: dict, user_args: dict | None):
         print("[SERVER]: [_send_emails_async] email worker finished✅")
 
 # =========================
-#   API: create lead (SQLite) — UNCHANGED
+#   API: create lead (SQLite)
 # =========================
 @app.post("/api/leads")
 def leads():
@@ -276,7 +262,7 @@ def leads():
     conn.close()
     print(f"[SERVER]: [leads] user: {payload['name']} saved successfully in DB!✅")
 
-    # Prepare email contents...
+    # Email bodies
     owner_plain = (
         f"New lead from {payload['name']}\n"
         f"Phone: {payload['phone']}\n"
@@ -351,45 +337,24 @@ def leads():
         "reply_to": OWNER_EMAIL,
     }
 
-    threading.Thread(
-        target=_send_emails_async,
-        args=(owner_args, user_args),
-        daemon=True
-    ).start()
-
+    threading.Thread(target=_send_emails_async, args=(owner_args, user_args), daemon=True).start()
     return jsonify({"ok": True}), 201
 
 # =========================
 #   API: Reviews (PostgreSQL)
 # =========================
-
-def _clean_review_payload(d: dict) -> tuple[str, str, dict | None]:
-    """
-    מחזיר (name, text, error_dict_or_None)
-    """
-    name = (d.get("name") or "").strip()
-    text = (d.get("text") or "").strip()
-    if len(name) < 2 or len(name) > 64:
-        return "", "", {"name": "שם חייב להיות בין 2 ל-64 תווים"}
-    if len(text) < 8 or len(text) > 600:
-        return "", "", {"text": "ביקורת חייבת להיות בין 8 ל-600 תווים"}
-    return name, text, None
-
 @app.get("/api/reviews")
 def list_reviews():
     if not pg_available():
-        return jsonify([])  # אם אין קונפיג, נחזיר ריק (לא מפיל את השרת)
+        return jsonify([])
     try:
         with pg_connect() as conn, conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-            cur.execute(
-                "SELECT id, name, text, created_at FROM reviews ORDER BY created_at DESC LIMIT 200"
-            )
-            rows = cur.fetchall()
-            # המרה ל־ISO 8601 בטוח
-            for r in rows:
+            cur.execute("SELECT id, name, text, created_at FROM reviews ORDER BY created_at DESC LIMIT 200;")
+            rows_ = cur.fetchall()
+            for r in rows_:
                 if isinstance(r["created_at"], datetime):
                     r["created_at"] = r["created_at"].isoformat()
-            return jsonify(rows)
+            return jsonify(rows_)
     except Exception as e:
         print("[SERVER]: /api/reviews ERROR:", repr(e))
         traceback.print_exc()
@@ -400,9 +365,9 @@ def create_review():
     if not pg_available():
         return jsonify({"ok": False, "error": "reviews_not_configured"}), 503
 
-    payload = request.get_json(force=True) or {}
-    name = (payload.get("name") or "").strip()
-    text = (payload.get("text") or "").strip()
+    data = request.get_json(force=True) or {}
+    name = (data.get("name") or "").strip()
+    text = (data.get("text") or "").strip()
 
     if len(name) < 2 or len(name) > 64:
         return jsonify({"ok": False, "errors": {"name": "שם חייב להיות בין 2 ל-64 תווים"}}), 400
@@ -410,19 +375,54 @@ def create_review():
         return jsonify({"ok": False, "errors": {"text": "ביקורת חייבת להיות בין 8 ל-600 תווים"}}), 400
 
     try:
+        # token לבעלות – מחזירים ללקוח ושומרים רק hash
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+
         with pg_connect() as conn, conn.cursor(row_factory=rows.dict_row) as cur:
-            cur.execute(
-                "INSERT INTO reviews (name, text) VALUES (%s, %s) RETURNING id, name, text, created_at;",
-                (name, text),
-            )
+            cur.execute("""
+                INSERT INTO reviews (name, text, token_hash)
+                VALUES (%s, %s, %s)
+                RETURNING id, name, text, created_at;
+            """, (name, text, token_hash))
             row = cur.fetchone()
-            conn.commit()  # <- commit מפורש
-            print(f"[REVIEWS] inserted id={row['id']} name={row['name']} ✅")
-            if isinstance(row["created_at"], datetime):
-                row["created_at"] = row["created_at"].isoformat()
-            return jsonify(row), 201
+            conn.commit()
+
+        row["created_at"] = row["created_at"].isoformat()
+        row["token"] = token  # מוחזר פעם אחת בלבד
+        print(f"[REVIEWS] inserted id={row['id']} by '{row['name']}' ✅")
+        return jsonify(row), 201
+
     except Exception as e:
         print("[SERVER]: /api/reviews POST ERROR:", repr(e))
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": "db_error"}), 500
+
+@app.delete("/api/reviews/<int:rid>")
+def delete_review(rid: int):
+    if not pg_available():
+        return jsonify({"ok": False, "error": "reviews_not_configured"}), 503
+
+    token = (request.headers.get("X-Review-Token") or "").strip()
+    if not token:
+        return jsonify({"ok": False, "error": "missing_token"}), 401
+
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    try:
+        with pg_connect() as conn, conn.cursor(row_factory=rows.dict_row) as cur:
+            cur.execute("DELETE FROM reviews WHERE id = %s AND token_hash = %s RETURNING id;", (rid, token_hash))
+            row = cur.fetchone()
+            conn.commit()
+
+        if not row:
+            return jsonify({"ok": False, "error": "forbidden_or_not_found"}), 403
+
+        print(f"[REVIEWS] deleted id={rid} ✅")
+        return jsonify({"ok": True}), 200
+
+    except Exception as e:
+        print("[SERVER]: /api/reviews DELETE ERROR:", repr(e))
         traceback.print_exc()
         return jsonify({"ok": False, "error": "db_error"}), 500
 
@@ -442,16 +442,16 @@ def export_csv():
         FROM leads
         ORDER BY id DESC
     """)
-    rows = cur.fetchall()
+    rows_ = cur.fetchall()
     conn.close()
 
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["id","name","phone","email","topic","message","created_at"])
-    for r in rows:
+    for r in rows_:
         w.writerow(r)
 
-    csv_bytes = buf.getvalue().encode("utf-8-sig")  # BOM for Excel
+    csv_bytes = buf.getvalue().encode("utf-8-sig")
     return Response(csv_bytes, status=200, headers={"Content-Type": "text/csv; charset=utf-8"})
 
 # =========================
@@ -478,22 +478,14 @@ def health():
 #   SQLite snapshot (backup API)
 # =========================
 def create_sqlite_snapshot(src_db: Path, dest_file: Path) -> None:
-    """
-    יוצר עותק תקין של מסד ה-SQLite גם כשהאפליקציה עובדת.
-    משתמש ב-Online Backup API כדי למנוע שחיתות קובץ.
-    """
     src_db = Path(src_db)
     dest_file = Path(dest_file)
     dest_file.parent.mkdir(parents=True, exist_ok=True)
-
-    # חיבור לקריאה-בלבד למקור
     src = sqlite3.connect(str(src_db), uri=False)
     try:
-        # חיבור לקובץ היעד (נוצר אוטומטית אם אינו קיים)
         dst = sqlite3.connect(str(dest_file), uri=False)
         try:
-            # העתקה אטומית של כל הדפים במסד
-            src.backup(dst)  # ← זה החלק החשוב
+            src.backup(dst)
             dst.commit()
         finally:
             dst.close()
@@ -510,7 +502,6 @@ def prune_old_backups(folder: Path, days: int = 30):
                 p.unlink(missing_ok=True)
         except Exception:
             pass
-
 
 @app.get("/api/backup/snapshot")
 def backup_snapshot():
