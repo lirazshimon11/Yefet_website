@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 # NEW: postgres
 import psycopg
+from psycopg import rows
 
 # =========================
 #   Paths & .env loading
@@ -81,6 +82,13 @@ if PG_URL and "sslmode=" not in PG_URL:
     # Render בד"כ דורש SSL; נוסיף אם חסר
     PG_URL += ("&" if "?" in PG_URL else "?") + "sslmode=require"
 
+# === הוספת לוג כאן ===
+if not PG_URL:
+    print("[SERVER]: WARNING – DATABASE_URL is missing. /api/reviews will return [].")
+else:
+    masked = PG_URL_RAW[:12] + "..."  # מסכה חלקית ללוג כדי לא לחשוף סיסמה
+    print(f"[SERVER]: DATABASE_URL detected (masked): {masked}")
+    
 def pg_available() -> bool:
     return bool(PG_URL)
 
@@ -390,20 +398,26 @@ def list_reviews():
 @app.post("/api/reviews")
 def create_review():
     if not pg_available():
-        return jsonify({"error": "reviews_not_configured"}), 503
+        return jsonify({"ok": False, "error": "reviews_not_configured"}), 503
 
     payload = request.get_json(force=True) or {}
-    name, text, err = _clean_review_payload(payload)
-    if err:
-        return jsonify({"ok": False, "errors": err}), 400
+    name = (payload.get("name") or "").strip()
+    text = (payload.get("text") or "").strip()
+
+    if len(name) < 2 or len(name) > 64:
+        return jsonify({"ok": False, "errors": {"name": "שם חייב להיות בין 2 ל-64 תווים"}}), 400
+    if len(text) < 8 or len(text) > 600:
+        return jsonify({"ok": False, "errors": {"text": "ביקורת חייבת להיות בין 8 ל-600 תווים"}}), 400
 
     try:
-        with pg_connect() as conn, conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        with pg_connect() as conn, conn.cursor(row_factory=rows.dict_row) as cur:
             cur.execute(
                 "INSERT INTO reviews (name, text) VALUES (%s, %s) RETURNING id, name, text, created_at;",
                 (name, text),
             )
             row = cur.fetchone()
+            conn.commit()  # <- commit מפורש
+            print(f"[REVIEWS] inserted id={row['id']} name={row['name']} ✅")
             if isinstance(row["created_at"], datetime):
                 row["created_at"] = row["created_at"].isoformat()
             return jsonify(row), 201
@@ -445,24 +459,21 @@ def export_csv():
 # =========================
 @app.get("/api/health")
 def health():
-    return jsonify({"ok": True})
-
-# =========================
-#   Snapshots (SQLite backup API)
-# =========================
-def create_sqlite_snapshot(src_db: Path, dest_file: Path) -> None:
-    """
-    Snapshot תקין של DB גם בזמן שהאפליקציה רצה (sqlite backup API).
-    """
-    src = sqlite3.connect(str(src_db))
-    try:
-        dst = sqlite3.connect(str(dest_file))
+    info = {"ok": True, "pg_available": pg_available()}
+    if pg_available():
         try:
-            src.backup(dst)  # atomic copy
-        finally:
-            dst.close()
-    finally:
-        src.close()
+            with pg_connect() as conn, conn.cursor() as cur:
+                cur.execute("SELECT 1;")
+                (one,) = cur.fetchone()
+                info["pg_ok"] = (one == 1)
+        except Exception as e:
+            info["pg_ok"] = False
+            info["pg_error"] = repr(e)
+    else:
+        info["pg_ok"] = False
+        info["pg_error"] = "DATABASE_URL missing"
+    return jsonify(info)
+
 
 def prune_old_backups(folder: Path, days: int = 30):
     cutoff = datetime.utcnow() - timedelta(days=days)
