@@ -35,3 +35,9 @@ html, body, #root {
   transition: none !important;
   scroll-behavior: auto !important;
 }
+/* הסתרת scrollbar אופקי באופן עדין */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+
+
