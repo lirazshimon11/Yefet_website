@@ -8,19 +8,21 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     env:
-      APP_URL: "https://yafet-website.onrender.com"   # ← עדכני אם צריך
+      API_BASE: "https://yafet-website.onrender.com/api"  # ← אם יש לך base אחר, עדכני כאן
     steps:
-      - name: Warm up (root)
+      # Warm-up: פינג עדין ל-health, לא נופלים על 404/5xx כדי פשוט "להעיר" את השירות
+      - name: Warm up health (non-fatal)
         run: |
-          echo "Warming up $APP_URL ..."
-          curl -fSL --retry 5 --retry-all-errors --connect-timeout 10 --max-time 60 \
-            "$APP_URL/?cb=$(date +%s)"
+          echo "Warming up $API_BASE/health ..."
+          curl -sS -L --retry 5 --retry-all-errors --connect-timeout 10 --max-time 60 \
+            "$API_BASE/health?cb=$(date +%s)" || true
 
-      - name: Sleep a bit
+      - name: Short sleep
         run: sleep 5
 
-      - name: Ping health endpoint
+      # בדיקה מחייבת הצלחה (2xx/3xx) עם חלון זמן גדול יותר ל-cold start
+      - name: Verify health (must succeed)
         run: |
-          echo "Pinging $APP_URL/api/health ..."
-          curl -fSL --retry 5 --retry-all-errors --connect-timeout 10 --max-time 60 \
-            "$APP_URL/api/health?cb=$(date +%s)"
+          echo "Verifying $API_BASE/health ..."
+          curl -fSL --retry 5 --retry-all-errors --connect-timeout 10 --max-time 90 \
+            "$API_BASE/health?cb=$(date +%s)"
