@@ -1,0 +1,13 @@
+name: Keep Render Awake
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # כל 10 דקות
+  workflow_dispatch:         # אפשר להריץ ידנית
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          curl -fsS -m 10 "https://yafet-website.onrender.com/api/health?cb=$(date +%s)" \
+            -H "User-Agent: keep-alive-bot/1.0"
