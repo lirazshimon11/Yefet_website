@@ -1,5 +1,6 @@
 import React from "react";
 import PressureSoresTeaser from "../components/Teaser";
+import WoundGallery from "../components/WoundGallery";
 
 export default function Pressure_ulcers() {
   return (
@@ -103,6 +104,13 @@ export default function Pressure_ulcers() {
             <li>פעילות גופנית קלה בהתאם ליכולת.</li>
           </ul>
         </div>
+
+
+        {/* ... התוכן/הסברים שלך ... */}
+
+        {/* הגלריה – כבר מוצגת מטושטשת, לחיצה חושפת */}
+        <WoundGallery />
+
 
         {/* פתרון יפת */}
         <PressureSoresTeaser name="פצעי לחץ" variant="section" showAudience={false} />
